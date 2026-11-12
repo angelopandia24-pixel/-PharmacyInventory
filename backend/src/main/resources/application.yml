@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:sqlserver://localhost:1433;databaseName=FarmaciaDB;encrypt=true;trustServerCertificate=true;
     username: sa
-    password: Pharmacy2026!Secret
+    password: ${DB_PASSWORD:Pharmacy2026!Secret}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   jpa:
     hibernate:
@@ -13,3 +13,6 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
+jwt:
+  secret: ${JWT_SECRET:cambia-esta-clave-en-produccion-minimo-32-caracteres-0123456789}
+  expiration-ms: 3600000
