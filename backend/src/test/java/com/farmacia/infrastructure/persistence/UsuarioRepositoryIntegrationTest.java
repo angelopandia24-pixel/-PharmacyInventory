@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:sqlserver://localhost:1433;databaseName=FarmaciaDB_HU01_Test;encrypt=true;trustServerCertificate=true;",
-        "spring.jpa.hibernate.ddl-auto=update"
+        "spring.jpa.hibernate.ddl-auto=validate"
 })
 @Transactional
 @EnabledIfEnvironmentVariable(named = "HU01_INTEGRATION_TESTS", matches = "true")
@@ -145,7 +145,7 @@ class UsuarioRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("CP-05: Verificar que SQL Server rechaza dos usuarios con el mismo codigoUsuario mediante restricción de unicidad")
+    @DisplayName("CP-05: Verificar que SQL Server rechaza dos usuarios con el mismo codigoUsuario y el adaptador traduce a CodigoUsuarioDuplicadoException")
     void cp05_verificarRechazoPorCodigoDuplicadoEnSqlServer() {
         String codigoDuplicado = "TEST-CP05-DUP";
         Usuario primerUsuario = new Usuario(
@@ -169,22 +169,40 @@ class UsuarioRepositoryIntegrationTest {
         assertThatThrownBy(() -> {
             usuarioRepository.save(segundoUsuarioConMismoCodigo);
             entityManager.flush();
-        }).isInstanceOf(DataIntegrityViolationException.class)
+        }).isInstanceOf(com.farmacia.domain.exception.CodigoUsuarioDuplicadoException.class)
+          .hasMessage("El código de usuario '" + codigoDuplicado + "' ya se encuentra registrado en el sistema")
           .satisfies(ex -> {
               boolean esViolacionUnicidadSqlServer = false;
-              Throwable causa = ex;
+              boolean correspondeRestriccionCodigoUsuario = false;
+              Throwable causa = ex.getCause();
               while (causa != null) {
+                  if (causa instanceof org.hibernate.exception.ConstraintViolationException cve) {
+                      String constraintName = cve.getConstraintName();
+                      if (constraintName != null && (constraintName.toLowerCase().contains("uk_28jlrohqs9b6tgmygccr7kdb2")
+                              || constraintName.toLowerCase().contains("codigo_usuario")
+                              || constraintName.toLowerCase().contains("codigousuario"))) {
+                          correspondeRestriccionCodigoUsuario = true;
+                      }
+                  }
                   if (causa instanceof SQLException sqlEx) {
                       int errorCode = sqlEx.getErrorCode();
                       if (errorCode == 2627 || errorCode == 2601) {
                           esViolacionUnicidadSqlServer = true;
-                          break;
+                      }
+                      String msg = sqlEx.getMessage();
+                      if (msg != null && (msg.toLowerCase().contains("uk_28jlrohqs9b6tgmygccr7kdb2")
+                              || msg.toLowerCase().contains("codigo_usuario")
+                              || msg.toLowerCase().contains("codigousuario"))) {
+                          correspondeRestriccionCodigoUsuario = true;
                       }
                   }
                   causa = causa.getCause();
               }
               assertThat(esViolacionUnicidadSqlServer)
-                      .as("La excepción debe ser originada por error SQL 2627 o 2601 de SQL Server (violación de clave única)")
+                      .as("La causa original debe conservar el código de error SQL 2627 o 2601 de SQL Server")
+                      .isTrue();
+              assertThat(correspondeRestriccionCodigoUsuario)
+                      .as("El error debe corresponder específicamente a la restricción única de codigo_usuario")
                       .isTrue();
           });
     }
