@@ -1,6 +1,7 @@
 package com.farmacia.infrastructure.config; // capa de infraestructura, subpaquete de configuración
 import org.springframework.context.annotation.Bean; // marca un método que fabrica un bean
 import org.springframework.context.annotation.Configuration; // marca la clase como configuración
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus; // códigos HTTP
 import org.springframework.security.config.annotation.web.builders.HttpSecurity; // constructor de reglas
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer; // para desactivar opciones
@@ -18,6 +19,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/health").permitAll() // prueba de conexión: pública
                         .requestMatchers("/error").permitAll() // página de error interna de Spring
+                        .requestMatchers(HttpMethod.POST, "/api/v1/usuarios").hasRole("ADMINISTRADORA")
                         .anyRequest().authenticated()) // todo lo demás exige autenticación
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))); // sin acceso: 401, no el formulario de login
         return http.build();
